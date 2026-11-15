@@ -1,0 +1,58 @@
+services:
+  web:
+    build: .
+    image: hourly-noise:latest
+    ports:
+      - "${NOISE_PORT:-8000}:8000"
+    environment:
+      NOISE_DB_PATH: /data/noise.sqlite3
+    volumes:
+      - noise-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Optional second service process sharing the same database file.
+  # Start with: docker compose --profile dual up --build
+  web-b:
+    profiles: ["dual"]
+    image: hourly-noise:latest
+    build: .
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --no-access-log
+    ports:
+      - "${NOISE_SECOND_PORT:-8001}:8000"
+    environment:
+      NOISE_DB_PATH: /data/noise.sqlite3
+    volumes:
+      - noise-data:/data
+    depends_on:
+      - web
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  noise-data:

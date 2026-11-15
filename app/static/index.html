@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>城市噪声 · 小时等效声级</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --panel: #ffffff;
+    --ink: #16202a;
+    --muted: #5d6b78;
+    --line: #d8e0e7;
+    --accent: #0b6e99;
+    --accent-ink: #ffffff;
+    --ok: #1b7a4b;
+    --warn: #a4570b;
+    --bad: #b3261e;
+    --code-bg: #0f1720;
+    --code-ink: #d9e4ef;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  header {
+    background: linear-gradient(115deg, #0b2c3d, #0b6e99);
+    color: #fff;
+    padding: 28px 24px;
+  }
+  header .wrap { max-width: 1080px; margin: 0 auto; }
+  header h1 { margin: 0 0 6px; font-size: 1.65rem; letter-spacing: .02em; }
+  header p { margin: 0; color: #cfe4ef; font-size: .95rem; }
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 24px 64px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  section.card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 1px 2px rgba(16, 32, 42, .05);
+  }
+  section.card > h2 {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
+    letter-spacing: .02em;
+  }
+  section.card > .hint { margin: 0 0 16px; color: var(--muted); font-size: .85rem; }
+  label { display: block; font-size: .82rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
+  input[type="text"], input[type="file"], textarea {
+    width: 100%;
+    font: inherit;
+    font-size: .92rem;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fbfcfd;
+    color: var(--ink);
+  }
+  textarea { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; min-height: 132px; resize: vertical; }
+  input:focus, textarea:focus { outline: 2px solid rgba(11, 110, 153, .35); border-color: var(--accent); }
+  .field { margin-bottom: 14px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button {
+    font: inherit;
+    font-size: .9rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    padding: 9px 16px;
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); }
+  button.primary:hover { background: #095a7d; }
+  button.ghost { background: #eef3f6; color: var(--ink); border-color: var(--line); }
+  button.ghost:hover { background: #e2eaef; }
+  button:disabled { opacity: .55; cursor: progress; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .note { font-size: .8rem; color: var(--muted); margin: 10px 0 0; }
+  .banner { border-radius: 8px; padding: 12px 14px; font-size: .9rem; margin-bottom: 16px; border: 1px solid; }
+  .banner.ok { background: #edf7f1; border-color: #b9dfc9; color: var(--ok); }
+  .banner.warn { background: #fdf3e5; border-color: #efd3ab; color: var(--warn); }
+  .banner.bad { background: #fdecea; border-color: #f0c2bd; color: var(--bad); }
+  .banner ul { margin: 6px 0 0; padding-left: 20px; }
+  .banner code { word-break: break-all; }
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 4px 0 18px; }
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fafcfd; }
+  .stat .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .stat .v { font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .v.small { font-size: .92rem; font-weight: 600; }
+  .pill { display: inline-block; font-size: .75rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; letter-spacing: .03em; }
+  .pill.published { background: #e2f2e9; color: var(--ok); }
+  .pill.unavailable { background: #f2e7db; color: var(--warn); }
+  .pill.retracted { background: #f8e2e0; color: var(--bad); }
+  h3 { font-size: .85rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 20px 0 8px; }
+  .minutes { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 4px; }
+  .minute {
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 4px 5px;
+    font-size: .72rem;
+    font-variant-numeric: tabular-nums;
+    background: #fbfcfd;
+  }
+  .minute .m { font-weight: 700; color: var(--muted); }
+  .minute .v { display: block; }
+  .minute .r { color: var(--muted); font-size: .68rem; }
+  .minute.invalid { background: #fdf0ef; border-color: #efc9c5; }
+  .minute.invalid .v { color: var(--bad); font-weight: 700; }
+  .minute.missing { background: #fdf7ec; border-color: #efd9b6; }
+  .minute.missing .v { color: var(--warn); font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  td.num, th.num { text-align: right; }
+  .empty { color: var(--muted); font-size: .88rem; padding: 10px 0; }
+  pre.json {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 14px;
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 460px;
+    font-size: .78rem;
+    line-height: 1.5;
+    margin: 0;
+  }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 18px 0 8px; }
+  .toolbar h3 { margin: 0; }
+  .toolbar button { padding: 5px 11px; font-size: .8rem; }
+  footer { max-width: 1080px; margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: .78rem; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>城市噪声监测 · 小时等效声级</h1>
+    <p>按分钟修订号上传 A 声级，60 分钟均有效时生成 10·log₁₀(Σ10<sup>L/10</sup>/60)；整份上传原子生效。</p>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card">
+      <h2>上传分钟数据</h2>
+      <p class="hint">同一 UTC 小时内分钟号（0–59）不得重复；修订号为正整数；每行填有限 dB 数或留空表示无效。</p>
+
+      <div class="field">
+        <label for="hour">目标小时（UTC）</label>
+        <input id="hour" type="text" value="" spellcheck="false" placeholder="2026-11-15T09:00Z">
+      </div>
+
+      <div class="field">
+        <label for="file">CSV 文件</label>
+        <input id="file" type="file" accept=".csv,text/csv,text/plain">
+      </div>
+
+      <div class="field">
+        <label for="csv">或粘贴 CSV</label>
+        <textarea id="csv" spellcheck="false" placeholder="minute,revision,value&#10;0,1,52.3&#10;1,1,51.8&#10;2,1,&#10;（空值表示该分钟无效，填写 text 框会优先于文件）"></textarea>
+      </div>
+
+      <div class="row">
+        <button class="primary" id="send">提交上传</button>
+        <button class="ghost" id="sample">填入示例（整点 60 条）</button>
+        <button class="ghost" id="refresh">按当前小时查询</button>
+      </div>
+      <p class="note">重复的「分钟 + 修订号 + 相同内容」会安全重传；同号不同内容或旧修订会导致整份文件被拒绝。</p>
+      <div id="upload-result"></div>
+    </section>
+
+    <section class="card">
+      <h2>小时结果查询</h2>
+      <p class="hint">与上传使用同一快照读取，不会看到半批数据。</p>
+      <div class="field">
+        <label for="query-hour">小时（UTC）</label>
+        <div class="split">
+          <input id="query-hour" type="text" spellcheck="false" placeholder="2026-11-15T09:00Z">
+          <button class="primary" id="query">查询</button>
+        </div>
+      </div>
+      <div id="summary"></div>
+      <div class="toolbar">
+        <h3>JSON</h3>
+        <button class="ghost" id="copy-json">复制</button>
+      </div>
+      <pre class="json" id="json">尚未查询。</pre>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:20px">
+    <h2>已登记小时</h2>
+    <p class="hint">点击任意一行查看其分钟修订与小时结果。</p>
+    <div id="hours"><div class="empty">加载中…</div></div>
+  </section>
+</main>
+
+<footer>
+  小时声级公式：L<sub>eq,h</sub> = 10·log₁₀( (1/60) · Σ<sub>i=0</sub><sup>59</sup> 10<sup>L<sub>i</sub>/10</sup> )，
+  代入的是每个分钟当前生效修订的值。任何新修订使小时不再具备 60 个有效分钟时，已发布结果撤销并可再次恢复。
+</footer>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+let lastJson = null;
+
+function currentUtcHour() {
+  const d = new Date();
+  d.setUTCMinutes(0, 0, 0);
+  return d.toISOString().slice(0, 13) + ":00Z";
+}
+
+function fmt(v) {
+  return (v === null || v === undefined) ? "—" : Number(v).toFixed(2);
+}
+
+function clear(node) {
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+function banner(kind, title, lines) {
+  const box = document.createElement("div");
+  box.className = "banner " + kind;
+  const strong = document.createElement("strong");
+  strong.textContent = title;
+  box.appendChild(strong);
+  if (lines && lines.length) {
+    const ul = document.createElement("ul");
+    for (const line of lines) {
+      const li = document.createElement("li");
+      li.textContent = line;
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+  }
+  return box;
+}
+
+function stat(key, value, small) {
+  const box = document.createElement("div");
+  box.className = "stat";
+  const k = document.createElement("div");
+  k.className = "k";
+  k.textContent = key;
+  const v = document.createElement("div");
+  v.className = "v" + (small ? " small" : "");
+  v.textContent = value;
+  if (arguments.length > 3 && arguments[3]) v.title = arguments[3];
+  box.append(k, v);
+  return box;
+}
+
+function exampleCsv() {
+  const lines = ["minute,revision,value"];
+  for (let m = 0; m < 60; m++) {
+    const l = 48 + 6 * Math.sin((2 * Math.PI * m) / 60) + ((m * 37) % 7) * 0.3;
+    lines.push(m + ",1," + l.toFixed(1));
+  }
+  return lines.join("\n");
+}
+
+function renderSummary(data) {
+  const host = $("summary");
+  clear(host);
+  const state = data.status;
+  const pill = document.createElement("span");
+  pill.className = "pill " + state;
+  pill.textContent = state === "published" ? "已发布" : "未发布";
+
+  const lead = document.createElement("div");
+  lead.style.margin = "0 0 10px";
+  lead.append(pill);
+
+  const stats = document.createElement("div");
+  stats.className = "stat-row";
+  stats.append(
+    stat("小时", data.hour, true),
+    stat("Leq dB", state === "published" ? fmt(data.leq_db) : "—"),
+    stat("有效分钟", (data.minutes_recorded - data.invalid_minutes.length) + " / 60"),
+    stat(
+      "所用提交",
+      data.submission_id === null ? "—" : "#" + data.submission_id,
+      true,
+      data.computed_at ? "计算结果时间 " + data.computed_at : ""
+    )
+  );
+  host.append(lead, stats);
+
+  if (data.invalid_minutes.length) {
+    host.appendChild(banner("bad", "无效分钟（" + data.invalid_minutes.length + "）",
+      [data.invalid_minutes.join(", ")]));
+  }
+  if (data.missing_minutes.length) {
+    host.appendChild(banner("warn", "缺测分钟（" + data.missing_minutes.length + "）",
+      [data.missing_minutes.join(", ")]));
+  }
+  if (state === "published") {
+    host.appendChild(banner("ok", "小时结果已发布",
+      ["按 60 个当前生效修订计算，结果已与读数同一次提交写入。"]));
+  } else if (data.has_data) {
+    const last = data.last_event;
+    const note = last && last.action === "retracted"
+      ? "最近一次提交（#" + last.submission_id + "）使小时不再完整，已发布结果随之撤销。"
+      : "需补足 60 个有效分钟后才会生成或恢复小时声级。";
+    host.appendChild(banner("warn", "小时结果未发布 / 已撤销", [note]));
+  }
+
+  const heading = document.createElement("h3");
+  heading.textContent = "分钟生效修订（" + data.minutes.length + " 条）";
+  host.appendChild(heading);
+
+  if (!data.minutes.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "该小时尚无读数。";
+    host.appendChild(empty);
+    return;
+  }
+
+  const byMinute = new Map(data.minutes.map((m) => [m.minute, m]));
+  const grid = document.createElement("div");
+  grid.className = "minutes";
+  for (let m = 0; m < 60; m++) {
+    const cell = document.createElement("div");
+    const row = byMinute.get(m);
+    if (!row) {
+      cell.className = "minute missing";
+      cell.append(minuteLabel(m), valueSpan("缺测"), revisionSpan(""));
+    } else if (row.invalid) {
+      cell.className = "minute invalid";
+      cell.append(minuteLabel(m), valueSpan("无效"), revisionSpan("r" + row.revision));
+    } else {
+      cell.className = "minute";
+      cell.append(minuteLabel(m), valueSpan(fmt(row.db)), revisionSpan("r" + row.revision));
+    }
+    grid.appendChild(cell);
+  }
+  host.appendChild(grid);
+}
+
+function minuteLabel(m) {
+  const d = document.createElement("span");
+  d.className = "m";
+  d.textContent = String(m).padStart(2, "0");
+  return d;
+}
+function valueSpan(text) {
+  const d = document.createElement("span");
+  d.className = "v";
+  d.textContent = text;
+  return d;
+}
+function revisionSpan(text) {
+  const d = document.createElement("span");
+  d.className = "r";
+  d.textContent = text;
+  return d;
+}
+
+async function queryHour(hour) {
+  const text = (hour || "").trim();
+  if (!text) { showSummaryError("请输入要查询的 UTC 小时。"); return; }
+  $("query-hour").value = text;
+  let response;
+  try {
+    response = await fetch("/api/hours/" + encodeURIComponent(text));
+  } catch (err) {
+    showSummaryError("网络错误：" + err);
+    return;
+  }
+  const data = await response.json();
+  if (!response.ok) {
+    showSummaryError(data.error || ("查询失败（HTTP " + response.status + "）"));
+    setJson(data);
+    return;
+  }
+  renderSummary(data);
+  setJson(data);
+  await loadHours();
+}
+
+function showSummaryError(message) {
+  const host = $("summary");
+  clear(host);
+  host.appendChild(banner("bad", "查询失败", [message]));
+}
+
+function setJson(value) {
+  lastJson = value;
+  $("json").textContent = JSON.stringify(value, null, 2);
+}
+
+async function loadHours() {
+  const host = $("hours");
+  let response;
+  try {
+    response = await fetch("/api/hours");
+  } catch (err) {
+    clear(host);
+    host.appendChild(banner("bad", "无法列出小时", [String(err)]));
+    return;
+  }
+  const data = await response.json();
+  clear(host);
+  if (!data.hours || !data.hours.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "尚无已登记的小时。";
+    host.appendChild(empty);
+    return;
+  }
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const hr = document.createElement("tr");
+  for (const [label, cls] of [["小时", ""], ["分钟数", "num"], ["状态", ""], ["Leq dB", "num"]]) {
+    const th = document.createElement("th");
+    th.textContent = label;
+    if (cls) th.className = cls;
+    hr.appendChild(th);
+  }
+  thead.appendChild(hr);
+  const tbody = document.createElement("tbody");
+  for (const item of data.hours) {
+    const tr = document.createElement("tr");
+    tr.style.cursor = "pointer";
+    tr.addEventListener("click", () => queryHour(item.hour));
+    const cells = [
+      [item.hour, ""],
+      [String(item.minutes_recorded), "num"],
+      [item.status === "published" ? "已发布" : "未发布", ""],
+      [item.status === "published" ? fmt(item.leq_db) : "—", "num"],
+    ];
+    for (const [text, cls] of cells) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      if (cls) td.className = cls;
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.append(thead, tbody);
+  host.appendChild(table);
+}
+
+function renderUpload(payload, status) {
+  const host = $("upload-result");
+  clear(host);
+  if (!payload) return;
+  if (status === 409) {
+    host.appendChild(banner("bad", "整份上传被拒绝（未写入任何行）", payload.errors || [payload.error]));
+    return;
+  }
+  if (!payload.ok) {
+    host.appendChild(banner("bad", "上传无效", [payload.error || "未知错误"]));
+    return;
+  }
+  const lines = [];
+  lines.push("本次生效 " + (payload.applied ? payload.applied.length : 0) + " 行，"
+    + "已存在相同内容 " + (payload.unchanged ? payload.unchanged.length : 0) + " 行。");
+  if (payload.outcome === "noop") lines.push("全部为重传，数据库内容未改变。");
+  const state = payload.hour_result_state;
+  if (state === "published") lines.push("小时结果已发布：" + fmt(payload.result.leq_db) + " dB。");
+  if (state === "retracted") lines.push("小时结果已撤销：存在无效或缺测分钟。");
+  if (state === "unavailable") lines.push("小时结果尚未生成：需 60 个有效分钟。");
+  host.appendChild(
+    banner(state === "retracted" ? "warn" : "ok", "上传已提交 · " + payload.hour, lines)
+  );
+  const link = document.createElement("button");
+  link.className = "ghost";
+  link.textContent = "查看该小时结果";
+  link.style.marginTop = "10px";
+  link.addEventListener("click", () => queryHour(payload.hour));
+  host.appendChild(link);
+  renderSummary(payload.result);
+  setJson(payload);
+  if (payload.hour) $("query-hour").value = payload.hour;
+  loadHours();
+}
+
+async function submitUpload() {
+  const hour = $("hour").value.trim();
+  const fileInput = $("file");
+  const csvText = $("csv").value;
+  const button = $("send");
+  button.disabled = true;
+  try {
+    const form = new FormData();
+    form.append("hour", hour);
+    if (csvText.trim()) {
+      form.append("text", csvText);
+    } else if (fileInput.files && fileInput.files[0]) {
+      form.append("file", fileInput.files[0]);
+    } else {
+      renderUpload({ ok: false, error: "请选择 CSV 文件或在文本框中粘贴内容。" }, 0);
+      return;
+    }
+    const response = await fetch("/api/upload", { method: "POST", body: form });
+    let data;
+    try {
+      data = await response.json();
+    } catch (err) {
+      data = { ok: false, error: "服务返回了非 JSON 响应（HTTP " + response.status + "）" };
+    }
+    if (response.ok) {
+      $("csv").value = "";
+      fileInput.value = "";
+    }
+    renderUpload(data, response.status);
+  } catch (err) {
+    renderUpload({ ok: false, error: "网络错误：" + err }, 0);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const now = currentUtcHour();
+  $("hour").value = now;
+  $("query-hour").value = now;
+  $("sample").addEventListener("click", () => {
+    $("hour").value = $("hour").value.trim() || now;
+    $("csv").value = exampleCsv();
+    $("file").value = "";
+  });
+  $("send").addEventListener("click", submitUpload);
+  $("query").addEventListener("click", () => queryHour($("query-hour").value));
+  $("refresh").addEventListener("click", () => queryHour($("hour").value));
+  $("copy-json").addEventListener("click", async () => {
+    if (lastJson === null) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(lastJson, null, 2));
+      $("copy-json").textContent = "已复制";
+      setTimeout(() => { $("copy-json").textContent = "复制"; }, 1200);
+    } catch (err) {
+      $("copy-json").textContent = "复制失败";
+    }
+  });
+  loadHours();
+});
+</script>
+</body>
+</html>
